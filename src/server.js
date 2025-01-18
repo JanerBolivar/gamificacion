@@ -2,10 +2,11 @@ import express from "express"
 import cors from "cors"
 import morgan from "morgan"
 import router from "./routes/index.js"
+import { PORT } from "./config/envs.js"
 
 
 //Puerto del servidor
-const port = process.env.PORT || 3000
+const port = PORT
 const app = express()
 
 app.use(cors())

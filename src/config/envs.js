@@ -8,3 +8,5 @@ export const db_credentials = {
   dbPassword: process.env.GAMIFICATION_DB_PASSWORD,
   dbName: process.env.GAMIFICATION_DB_NAME,
 };
+
+export const PORT = process.env.GAMIFICATION_PORT;
