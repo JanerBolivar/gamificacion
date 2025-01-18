@@ -152,6 +152,7 @@ gameRouter.post('/new-team', async (req, res) => {
     const team_member1ID = null;
     const team_member2ID = null;
     const team_member3ID = null;
+    const team_memberChair = null;
 
     const connection = createConnection();
 
@@ -192,11 +193,11 @@ gameRouter.post('/new-team', async (req, res) => {
 
             // Si hay cupos, registrar el equipo
             const insertTeamQuery = `
-                INSERT INTO team (team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO team (team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             `;
 
-            connection.query(insertTeamQuery, [team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID], (error, results) => {
+            connection.query(insertTeamQuery, [team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair], (error, results) => {
                 if (error) {
                     console.error('Error al registrar nuevo equipo:', error);
                     connection.end();
@@ -404,7 +405,133 @@ gameRouter.post('/leave-team', async (req, res) => {
     });
 });
 
+// Ruta para obtener la información de un equipo
+gameRouter.post('/info-team', async (req, res) => {
+    const { team_id } = req.body;
 
+    // Validar que el team_id no sea vacío
+    if (!team_id) {
+        return res.status(400).json({ message: 'El team_id es requerido' });
+    }
+
+    const connection = createConnection();
+
+    connection.connect(error => {
+        if (error) {
+            console.error('Error al conectar con la base de datos:', error);
+            return res.status(500).json({ message: 'Error al conectar con la base de datos' });
+        }
+
+        // Consultar si el equipo existe
+        const getTeamQuery = `
+            SELECT * 
+            FROM team 
+            WHERE team_id = ?
+        `;
+
+        connection.query(getTeamQuery, [team_id], (error, results) => {
+            if (error) {
+                console.error('Error al obtener la información del equipo:', error);
+                connection.end();
+                return res.status(500).json({ message: 'Error al obtener la información del equipo' });
+            }
+
+            // Si el equipo no existe, devolver un mensaje de error
+            if (results.length === 0) {
+                connection.end();
+                return res.status(404).json({ message: `No se encontró el equipo con el id: ${team_id}` });
+            }
+
+            const { team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair } = results[0];
+
+            // Devolver la información del equipo
+            res.status(200).json({
+                message: 'Información del equipo obtenida exitosamente',
+                team_id,
+                team_ownerID,
+                game_id,
+                team_member1ID,
+                team_member2ID, 
+                team_member3ID,
+                team_memberChair
+            });
+
+            connection.end();
+        });
+    });
+});
+
+// Ruta para asignar un miembro a team_memberChair
+gameRouter.post('/sit-chair', async (req, res) => {
+    const { team_id, team_memberID } = req.body;
+
+    // Validar que los campos no estén vacíos
+    if (!team_id || !team_memberID) {
+        return res.status(400).json({ message: 'El team_id y team_memberID son requeridos' });
+    }
+
+    const connection = createConnection();
+
+    connection.connect(error => {
+        if (error) {
+            console.error('Error al conectar con la base de datos:', error);
+            return res.status(500).json({ message: 'Error al conectar con la base de datos' });
+        }
+
+        // Validar que el equipo exista
+        const getTeamQuery = `
+            SELECT * 
+            FROM team 
+            WHERE team_id = ?
+        `;
+
+        connection.query(getTeamQuery, [team_id], (error, results) => {
+            if (error) {
+                console.error('Error al verificar el equipo:', error);
+                connection.end();
+                return res.status(500).json({ message: 'Error al verificar el equipo' });
+            }
+
+            // Si el equipo no existe, devolver un mensaje de error
+            if (results.length === 0) {
+                connection.end();
+                return res.status(404).json({ message: `No se encontró el equipo con el id: ${team_id}` });
+            }
+
+            // Actualizar el campo team_memberChair con el team_memberID
+            const updateChairQuery = `
+                UPDATE team 
+                SET team_memberChair = ? 
+                WHERE team_id = ?
+            `;
+
+            connection.query(updateChairQuery, [team_memberID, team_id], (error, results) => {
+                if (error) {
+                    console.error('Error al asignar el miembro a team_memberChair:', error);
+                    connection.end();
+                    return res.status(500).json({ message: 'Error al asignar el miembro a team_memberChair' });
+                }
+
+                // Verificar si se actualizó correctamente
+                if (results.affectedRows === 0) {
+                    connection.end();
+                    return res.status(400).json({ message: 'No se pudo actualizar el campo team_memberChair' });
+                }
+
+                // Respuesta exitosa
+                res.status(200).json({
+                    message: 'Miembro asignado exitosamente a team_memberChair',
+                    team: {
+                        team_id,
+                        team_memberChair: team_memberID
+                    }
+                });
+
+                connection.end();
+            });
+        });
+    });
+});
 
 
 
