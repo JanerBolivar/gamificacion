@@ -61,14 +61,12 @@ gameRouter.post('/new-game', async (req, res) => {
 
             res.status(200).json({
                 message: 'Juego registrado exitosamente',
-                game: {
-                    game_id,
-                    game_title,
-                    game_maxTeams,
-                    game_status,
-                    game_dateStart: new Date(),
-                    game_dateEnd
-                }
+                game_id,
+                game_title,
+                game_maxTeams,
+                game_status,
+                game_dateStart: new Date(),
+                game_dateEnd
             });
 
             connection.end();
@@ -220,14 +218,12 @@ gameRouter.post('/new-team', async (req, res) => {
 
                     res.status(200).json({
                         message: 'Equipo registrado exitosamente',
-                        team: {
-                            team_id,
-                            team_ownerID,
-                            game_id,
-                            team_member1ID,
-                            team_member2ID,
-                            team_member3ID
-                        }
+                        team_id,
+                        team_ownerID,
+                        game_id,
+                        team_member1ID,
+                        team_member2ID,
+                        team_member3ID
                     });
 
                     connection.end();
@@ -309,10 +305,8 @@ gameRouter.post('/join-team', async (req, res) => {
                 // Construir la respuesta personalizada
                 res.status(200).json({
                     message: 'Miembro registrado exitosamente en el equipo',
-                    team: {
-                        team_id: team_id,
-                        [columnToUpdate]: team_memberID
-                    }
+                    team_id: team_id,
+                    [columnToUpdate]: team_memberID
                 });
 
                 connection.end();
@@ -393,10 +387,8 @@ gameRouter.post('/leave-team', async (req, res) => {
                 // Construir la respuesta personalizada
                 res.status(200).json({
                     message: 'Miembro eliminado exitosamente del equipo',
-                    team: {
-                        team_id: team_id,
-                        [columnToUpdate]: null
-                    }
+                    team_id: team_id,
+                    [columnToUpdate]: null
                 });
 
                 connection.end();
@@ -521,10 +513,8 @@ gameRouter.post('/sit-chair', async (req, res) => {
                 // Respuesta exitosa
                 res.status(200).json({
                     message: 'Miembro asignado exitosamente a team_memberChair',
-                    team: {
-                        team_id,
-                        team_memberChair: team_memberID
-                    }
+                    team_id,
+                    team_memberChair: team_memberID
                 });
 
                 connection.end();
