@@ -35,7 +35,7 @@ gameRouter.post('/new-game', async (req, res) => {
 
     // Generar game_id y establecer valores por defecto
     const game_id = generateGameId();
-    const game_status = true;
+    const game_status = "true";
     const game_dateEnd = null;
     const game_regTeams = 0;
 
@@ -74,6 +74,51 @@ gameRouter.post('/new-game', async (req, res) => {
     });
 });
 
+// Ruta para obtener información del juego
+gameRouter.post('/info-game', async (req, res) => {
+    const { game_id } = req.body;
+
+    if (!game_id) {
+        return res.status(400).json({ message: 'El game_id es requerido' });
+    }
+
+    const connection = createConnection();
+
+    connection.connect((error) => {
+        if (error) {
+            console.error('Error al conectar con la base de datos:', error);
+            return res.status(500).json({ message: 'Error al conectar con la base de datos' });
+        }
+
+        const getGameQuery = `SELECT * FROM game WHERE game_id = ?`;
+
+        connection.query(getGameQuery, [game_id], (error, results) => {
+            if (error) {
+                console.error('Error al consultar la base de datos:', error);
+                connection.end();
+                return res.status(500).json({ message: 'Error al consultar la base de datos' });
+            }
+            if (results.length === 0) {
+                connection.end();
+                return res.status(404).json({ message: 'No se encontró el juego' });
+            }
+
+            const { game_id, game_title, game_maxTeams, game_regTeams, game_status, game_startDate, game_endDate } = results[0];
+
+            return res.status(200).json({ 
+                game_id,
+                game_title,
+                game_maxTeams,
+                game_regTeams,
+                game_status,
+                game_startDate,
+                game_endDate });
+        });
+
+        connection.end();
+    });
+});
+
 // Ruta para finalizar un juego
 gameRouter.post('/end-game', async (req, res) => {
     const { game_id } = req.body;
@@ -100,7 +145,6 @@ gameRouter.post('/end-game', async (req, res) => {
                 return res.status(500).json({ message: 'Error al verificar el juego' });
             }
 
-            // Si no se encuentra el juego, devolver un mensaje de error
             if (results.length === 0) {
                 connection.end();
                 return res.status(404).json({ message: `No se encontró el juego con el id: ${game_id}` });
@@ -108,28 +152,31 @@ gameRouter.post('/end-game', async (req, res) => {
 
             const { game_status } = results[0];
 
-            // Verificar si el juego ya está finalizado
-            if (game_status === "0") {
+            if (game_status === "false") {
                 connection.end();
                 return res.status(400).json({ message: `El juego con el id: ${game_id} ya está finalizado` });
             }
 
-            // Actualizar el estado del juego a finalizado
-            const updateGameStatusQuery = `
-                UPDATE game 
-                SET game_status = false 
-                WHERE game_id = ?
-            `;
-
-            connection.query(updateGameStatusQuery, [game_id], (error, results) => {
+            // Actualizar el estado del juego y los equipos relacionados
+            const updateGameStatusQuery = `UPDATE game SET game_status = 'false' WHERE game_id = ?`;
+            connection.query(updateGameStatusQuery, [game_id], (error) => {
                 if (error) {
                     console.error('Error al actualizar el estado del juego:', error);
                     connection.end();
                     return res.status(500).json({ message: 'Error al actualizar el estado del juego' });
                 }
 
-                res.status(200).json({ message: `El juego con el id: ${game_id} ha sido finalizado exitosamente` });
-                connection.end();
+                const updateTeamStatusQuery = `UPDATE team SET team_status = 'false' WHERE game_id = ?`;
+                connection.query(updateTeamStatusQuery, [game_id], (error) => {
+                    if (error) {
+                        console.error('Error al actualizar el estado de los equipos:', error);
+                        connection.end();
+                        return res.status(500).json({ message: 'Error al actualizar el estado de los equipos' });
+                    }
+
+                    res.status(200).json({ message: `El juego con el id: ${game_id} y sus equipos han sido finalizados exitosamente` });
+                    connection.end();
+                });
             });
         });
     });
@@ -138,10 +185,10 @@ gameRouter.post('/end-game', async (req, res) => {
 
 // Ruta para registrar un nuevo equipo
 gameRouter.post('/new-team', async (req, res) => {
-    const { team_ownerID, game_id } = req.body;
+    const { team_name, team_ownerID, game_id } = req.body;
 
     // Validación básica
-    if (!team_ownerID || !game_id) {
+    if (!team_name || !team_ownerID || !game_id) {
         return res.status(400).json({ message: 'Faltan datos requeridos' });
     }
 
@@ -151,6 +198,7 @@ gameRouter.post('/new-team', async (req, res) => {
     const team_member2ID = null;
     const team_member3ID = null;
     const team_memberChair = null;
+    const team_status = "true";
 
     const connection = createConnection();
 
@@ -178,7 +226,7 @@ gameRouter.post('/new-team', async (req, res) => {
             const { game_maxTeams, game_regTeams, game_status } = results[0];
 
             // Validacion para saber si el juego ya finalizo
-            if (game_status === "0") {
+            if (game_status === "false") {
                 connection.end();
                 return res.status(404).json({ message: `El juego con el id: ${game_id} ya finalizo` });
             }
@@ -191,11 +239,11 @@ gameRouter.post('/new-team', async (req, res) => {
 
             // Si hay cupos, registrar el equipo
             const insertTeamQuery = `
-                INSERT INTO team (team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO team (team_id, team_name, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair, team_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
-            connection.query(insertTeamQuery, [team_id, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair], (error, results) => {
+            connection.query(insertTeamQuery, [team_id, team_name, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair, team_status], (error, results) => {
                 if (error) {
                     console.error('Error al registrar nuevo equipo:', error);
                     connection.end();
@@ -219,6 +267,7 @@ gameRouter.post('/new-team', async (req, res) => {
                     res.status(200).json({
                         message: 'Equipo registrado exitosamente',
                         team_id,
+                        team_name,
                         team_ownerID,
                         game_id,
                         team_member1ID,
@@ -237,7 +286,6 @@ gameRouter.post('/new-team', async (req, res) => {
 gameRouter.post('/join-team', async (req, res) => {
     const { team_id, team_memberID } = req.body;
 
-    // Validar que los campos no estén vacíos
     if (!team_id || !team_memberID) {
         return res.status(400).json({ message: 'El team_id y el team_memberID son requeridos' });
     }
@@ -250,66 +298,80 @@ gameRouter.post('/join-team', async (req, res) => {
             return res.status(500).json({ message: 'Error al conectar con la base de datos' });
         }
 
-        // Verificar si el equipo existe
-        const checkTeamQuery = `
-            SELECT team_member1ID, team_member2ID, team_member3ID 
-            FROM team 
-            WHERE team_id = ?
-        `;
-
-        connection.query(checkTeamQuery, [team_id], (error, results) => {
+        // Verificar si el equipo está activo
+        const checkTeamStatusQuery = `SELECT team_status FROM team WHERE team_id = ?`;
+        connection.query(checkTeamStatusQuery, [team_id], (error, results) => {
             if (error) {
                 console.error('Error al verificar el equipo:', error);
                 connection.end();
                 return res.status(500).json({ message: 'Error al verificar el equipo' });
             }
 
-            // Si no se encuentra el equipo, devolver un mensaje de error
             if (results.length === 0) {
                 connection.end();
                 return res.status(404).json({ message: `No se encontró el equipo con el id: ${team_id}` });
             }
 
-            const { team_member1ID, team_member2ID, team_member3ID } = results[0];
+            const { team_status } = results[0];
 
-            // Validar si hay un cupo disponible en el equipo
-            let columnToUpdate = null;
-            if (!team_member1ID) {
-                columnToUpdate = 'team_member1ID';
-            } else if (!team_member2ID) {
-                columnToUpdate = 'team_member2ID';
-            } else if (!team_member3ID) {
-                columnToUpdate = 'team_member3ID';
-            }
-
-            // Si no hay cupo, devolver un mensaje de error
-            if (!columnToUpdate) {
+            if (team_status === "false") {
                 connection.end();
-                return res.status(400).json({ message: 'El equipo ya está lleno' });
+                return res.status(400).json({ message: `El equipo con el id: ${team_id} no está activo` });
             }
 
-            // Actualizar el equipo asignando el miembro al primer campo disponible
-            const updateTeamQuery = `
-                UPDATE team 
-                SET ${columnToUpdate} = ? 
+            // Si el equipo está activo, proceder a verificar si hay cupo disponible
+            const checkTeamQuery = `
+                SELECT team_member1ID, team_member2ID, team_member3ID 
+                FROM team 
                 WHERE team_id = ?
             `;
 
-            connection.query(updateTeamQuery, [team_memberID, team_id], (error, results) => {
+            connection.query(checkTeamQuery, [team_id], (error, results) => {
                 if (error) {
-                    console.error('Error al actualizar el equipo:', error);
+                    console.error('Error al verificar el equipo:', error);
                     connection.end();
-                    return res.status(500).json({ message: 'Error al actualizar el equipo' });
+                    return res.status(500).json({ message: 'Error al verificar el equipo' });
                 }
 
-                // Construir la respuesta personalizada
-                res.status(200).json({
-                    message: 'Miembro registrado exitosamente en el equipo',
-                    team_id: team_id,
-                    [columnToUpdate]: team_memberID
-                });
+                if (results.length === 0) {
+                    connection.end();
+                    return res.status(404).json({ message: `No se encontró el equipo con el id: ${team_id}` });
+                }
 
-                connection.end();
+                const { team_member1ID, team_member2ID, team_member3ID } = results[0];
+
+                let columnToUpdate = null;
+                if (!team_member1ID) {
+                    columnToUpdate = 'team_member1ID';
+                } else if (!team_member2ID) {
+                    columnToUpdate = 'team_member2ID';
+                } else if (!team_member3ID) {
+                    columnToUpdate = 'team_member3ID';
+                }
+
+                if (!columnToUpdate) {
+                    connection.end();
+                    return res.status(400).json({ message: 'El equipo ya está lleno' });
+                }
+
+                // Actualizar el equipo asignando el nuevo miembro
+                const updateTeamQuery = `UPDATE team SET ${columnToUpdate} = ? WHERE team_id = ?`;
+
+                connection.query(updateTeamQuery, [team_memberID, team_id], (error, results) => {
+                    if (error) {
+                        console.error('Error al actualizar el equipo:', error);
+                        connection.end();
+                        return res.status(500).json({ message: 'Error al actualizar el equipo' });
+                    }
+
+                    res.status(200).json({
+                        message: 'Miembro registrado exitosamente en el equipo',
+                        team_id: team_id,
+                        [columnToUpdate]: team_memberID
+                    });
+
+                    connection.end();
+                });
             });
         });
     });
@@ -434,12 +496,13 @@ gameRouter.post('/info-team', async (req, res) => {
                 return res.status(404).json({ message: `No se encontró el equipo con el id: ${team_id}` });
             }
 
-            const { team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair } = results[0];
+            const { team_name, team_ownerID, game_id, team_member1ID, team_member2ID, team_member3ID, team_memberChair } = results[0];
 
             // Devolver la información del equipo
             res.status(200).json({
                 message: 'Información del equipo obtenida exitosamente',
                 team_id,
+                team_name,
                 team_ownerID,
                 game_id,
                 team_member1ID,
