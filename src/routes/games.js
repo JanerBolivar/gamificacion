@@ -587,6 +587,37 @@ gameRouter.post('/sit-chair', async (req, res) => {
 });
 
 
+// Ruta para obtener un registro aleatorio de la tabla "guessit"
+gameRouter.get('/random-guessit', async (req, res) => {
+    const connection = createConnection();
+
+    connection.connect(error => {
+        if (error) {
+            console.error('Error al conectar con la base de datos:', error);
+            return res.status(500).json({ message: 'Error al conectar con la base de datos' });
+        }
+
+        const query = `SELECT guessit_concept, guessit_sentence FROM guessit ORDER BY RAND() LIMIT 1`;
+
+        connection.query(query, (error, results) => {
+            if (error) {
+                console.error('Error al obtener el registro aleatorio:', error);
+                connection.end();
+                return res.status(500).json({ message: 'Error al obtener el registro' });
+            }
+
+            if (results.length === 0) {
+                connection.end();
+                return res.status(404).json({ message: 'No hay registros en la tabla' });
+            }
+
+            res.status(200).json(results[0]);
+            connection.end();
+        });
+    });
+});
+
+
 
 
 export default gameRouter;
