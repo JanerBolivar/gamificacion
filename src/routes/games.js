@@ -105,14 +105,15 @@ gameRouter.post('/info-game', async (req, res) => {
 
             const { game_id, game_title, game_maxTeams, game_regTeams, game_status, game_startDate, game_endDate } = results[0];
 
-            return res.status(200).json({ 
+            return res.status(200).json({
                 game_id,
                 game_title,
                 game_maxTeams,
                 game_regTeams,
                 game_status,
                 game_startDate,
-                game_endDate });
+                game_endDate
+            });
         });
 
         connection.end();
@@ -506,7 +507,7 @@ gameRouter.post('/info-team', async (req, res) => {
                 team_ownerID,
                 game_id,
                 team_member1ID,
-                team_member2ID, 
+                team_member2ID,
                 team_member3ID,
                 team_memberChair
             });
@@ -588,7 +589,13 @@ gameRouter.post('/sit-chair', async (req, res) => {
 
 
 // Ruta para obtener un registro aleatorio de la tabla "guessit"
-gameRouter.get('/random-guessit', async (req, res) => {
+gameRouter.post('/random-guessit', async (req, res) => {
+    const { team_memberID } = req.body;
+
+    if (!team_memberID) {
+        return res.status(400).json({ message: 'El team_memberID es requerido' });
+    }
+
     const connection = createConnection();
 
     connection.connect(error => {
@@ -597,21 +604,61 @@ gameRouter.get('/random-guessit', async (req, res) => {
             return res.status(500).json({ message: 'Error al conectar con la base de datos' });
         }
 
-        const query = `SELECT guessit_concept, guessit_sentence FROM guessit ORDER BY RAND() LIMIT 1`;
+        const checkTeamQuery = `SELECT team_member1ID, team_member2ID, team_member3ID 
+                        FROM team 
+                        WHERE team_memberChair = ? AND team_status = 'true' 
+                        LIMIT 1`;
 
-        connection.query(query, (error, results) => {
+        connection.query(checkTeamQuery, [team_memberID], (error, results) => {
             if (error) {
-                console.error('Error al obtener el registro aleatorio:', error);
+                console.error('Error al verificar el equipo:', error);
                 connection.end();
-                return res.status(500).json({ message: 'Error al obtener el registro' });
+                return res.status(500).json({ message: 'Error al verificar el equipo' });
             }
 
             if (results.length === 0) {
                 connection.end();
-                return res.status(404).json({ message: 'No hay registros en la tabla' });
+                return res.status(404).json({ message: 'El equipo no está activo' });
             }
 
-            res.status(200).json(results[0]);
+            // Extraer valores y filtrar los que no sean null
+            const teamMembers = [
+                results[0].team_member1ID,
+                results[0].team_member2ID,
+                results[0].team_member3ID
+            ].filter(member => member !== null);
+
+            if (teamMembers.length === 0) {
+                connection.end();
+                return res.status(404).json({ message: 'No hay miembros válidos en el equipo' });
+            }
+
+            // Escoger un miembro aleatorio
+            const team_member = teamMembers[Math.floor(Math.random() * teamMembers.length)];
+
+            const query = `SELECT guessit_concept, guessit_sentence FROM guessit ORDER BY RAND() LIMIT 1`;
+
+            connection.query(query, (error, results) => {
+                if (error) {
+                    console.error('Error al obtener el registro aleatorio:', error);
+                    connection.end();
+                    return res.status(500).json({ message: 'Error al obtener el registro' });
+                }
+
+                if (results.length === 0) {
+                    connection.end();
+                    return res.status(404).json({ message: 'No hay registros en la tabla' });
+                }
+
+                const { guessit_concept, guessit_sentence } = results[0];
+
+                res.status(200).json({
+                    team_member,
+                    guessit_concept,
+                    guessit_sentence
+                });
+                connection.end();
+            });
             connection.end();
         });
     });
